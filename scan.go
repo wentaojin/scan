@@ -70,7 +70,7 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	}
 	zap.L().Info("create database connect success", zap.String("cost", time.Now().Sub(sTime).String()))
 
-	err = metaDB.DB(ctx).Exec(fmt.Sprintf("DELETE FROM `%s`.`statistics` WHERE schema_name_t = '%s'", cfg.MetaConfig.MetaSchema), strings.ToUpper(cfg.OracleConfig.Schema)).Error
+	err = metaDB.DB(ctx).Exec(fmt.Sprintf("DELETE FROM `%s`.`statistics` WHERE schema_name_t = '%s'", cfg.MetaConfig.MetaSchema, strings.ToUpper(cfg.OracleConfig.Schema))).Error
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,8 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	}
 
 	if !cfg.AppConfig.SkipSplit {
-		err = metaDB.DB(ctx).Exec(fmt.Sprintf("DELETE FROM `%s`.`full` WHERE schema_name_t = '%s'", cfg.MetaConfig.MetaSchema, strings.ToUpper(cfg.OracleConfig.Schema))).Error
+		err = metaDB.DB(ctx).Exec(
+			fmt.Sprintf("DELETE FROM `%s`.`full` WHERE schema_name_t = '%s'", cfg.MetaConfig.MetaSchema, strings.ToUpper(cfg.OracleConfig.Schema))).Error
 		if err != nil {
 			return err
 		}
