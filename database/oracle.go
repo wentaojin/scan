@@ -110,7 +110,8 @@ func (o *Oracle) StartOracleChunkCreateTask(taskName string, callTimeout int64) 
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(o.Ctx, time.Duration(callTimeout))
+	deadline := time.Now().Add(time.Duration(callTimeout) * time.Second)
+	ctx, cancel := context.WithDeadline(o.Ctx, deadline)
 	defer cancel()
 	createSQL := common.StringsBuilder(`BEGIN
   DBMS_PARALLEL_EXECUTE.CREATE_TASK (task_name => '`, taskName, `');
@@ -123,7 +124,9 @@ END;`)
 }
 
 func (o *Oracle) StartOracleCreateChunkByRowID(taskName, schemaName, tableName string, chunkSize string, callTimeout int64) error {
-	ctx, cancel := context.WithTimeout(o.Ctx, time.Duration(callTimeout))
+	deadline := time.Now().Add(time.Duration(callTimeout) * time.Second)
+
+	ctx, cancel := context.WithDeadline(o.Ctx, deadline)
 	defer cancel()
 
 	chunkSQL := common.StringsBuilder(`BEGIN
@@ -152,7 +155,9 @@ func (o *Oracle) GetOracleTableChunksByRowID(taskName string) ([]map[string]stri
 }
 
 func (o *Oracle) CloseOracleChunkTask(taskName string, callTimeout int64) error {
-	ctx, cancel := context.WithTimeout(o.Ctx, time.Duration(callTimeout))
+	deadline := time.Now().Add(time.Duration(callTimeout) * time.Second)
+
+	ctx, cancel := context.WithDeadline(o.Ctx, deadline)
 	defer cancel()
 
 	clearSQL := common.StringsBuilder(`BEGIN
