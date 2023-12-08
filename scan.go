@@ -228,7 +228,7 @@ func Split(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *c
 
 			taskName := uuid.New().String()
 
-			if err := dbT.StartOracleChunkCreateTask(taskName, cfg.AppConfig.CallTimeout); err != nil {
+			if err := dbT.StartOracleChunkCreateTask(taskName); err != nil {
 				return err
 			}
 
@@ -272,6 +272,10 @@ func Split(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *c
 			}
 			err = database.NewFullModel(dbM).BatchCreateFullSyncMeta(ctx, fs, cfg.AppConfig.BatchSize)
 			if err != nil {
+				return err
+			}
+
+			if err = dbT.CloseOracleChunkTask(taskName); err != nil {
 				return err
 			}
 
