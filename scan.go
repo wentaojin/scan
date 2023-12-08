@@ -70,7 +70,7 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	}
 	zap.L().Info("create database connect success", zap.String("cost", time.Now().Sub(sTime).String()))
 
-	err = metaDB.DB(ctx).Exec(fmt.Sprintf("TRUNCATE TABLE `%s`.`statistics`", cfg.MetaConfig.MetaSchema)).Error
+	err = metaDB.DB(ctx).Exec(fmt.Sprintf("DELETE FROM `%s`.`statistics` WHERE schema_name_t = '%s'", cfg.MetaConfig.MetaSchema), strings.ToUpper(cfg.OracleConfig.Schema)).Error
 	if err != nil {
 		return err
 	}
@@ -85,18 +85,18 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	}
 
 	tables, err := database.NewWaitModel(metaDB).DetailWaitSyncMeta(ctx, &database.Wait{
-		SchemaNameT: strings.ToUpper(cfg.OracleConfig.Schema),
+		SchemaNameT: strings.ToUpper(cfg.MySQLConfig.Schema),
 	})
 	if err != nil {
 		return err
 	}
 
 	if !cfg.AppConfig.SkipSplit {
-		err = metaDB.DB(ctx).Exec(fmt.Sprintf("TRUNCATE TABLE `%s`.`full`", cfg.MetaConfig.MetaSchema)).Error
+		err = metaDB.DB(ctx).Exec(fmt.Sprintf("DELETE FROM `%s`.`full` WHERE schema_name_t = '%s'", cfg.MetaConfig.MetaSchema, strings.ToUpper(cfg.OracleConfig.Schema))).Error
 		if err != nil {
 			return err
 		}
-		err := metaDB.DB(ctx).Exec(fmt.Sprintf("TRUNCATE TABLE `%s`.`scan`", cfg.MetaConfig.MetaSchema)).Error
+		err := metaDB.DB(ctx).Exec(fmt.Sprintf("DELETE FROM `%s`.`scan` WHERE schema_name_t = '%s'", cfg.MetaConfig.MetaSchema, strings.ToUpper(cfg.OracleConfig.Schema))).Error
 		if err != nil {
 			return err
 		}
@@ -180,7 +180,7 @@ func Init(ctx context.Context, dbM *database.Meta, dbS *database.MySQL, cfg *con
 			if len(column) > 0 {
 				column = append(column, "ROWID")
 				err = database.NewWaitModel(dbM).CreateWaitSyncMeta(ctx, &database.Wait{
-					SchemaNameT:   strings.ToUpper(cfg.OracleConfig.Schema),
+					SchemaNameT:   strings.ToUpper(cfg.MySQLConfig.Schema),
 					TableNameS:    strings.ToUpper(t),
 					ColumnDetailS: strings.Join(column, ","),
 				})
@@ -332,7 +332,7 @@ func Scan(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *co
 
 			var metas []database.Full
 			waitMetas, err := database.NewFullModel(dbM).DetailFullSyncMeta(ctx, &database.Full{
-				SchemaNameT: t.SchemaNameT,
+				SchemaNameT: strings.ToUpper(cfg.OracleConfig.Schema),
 				TableNameT:  t.TableNameS,
 				TaskStatus:  "WAITING",
 			})
@@ -341,7 +341,7 @@ func Scan(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *co
 			}
 
 			failedMetas, err := database.NewFullModel(dbM).DetailFullSyncMeta(ctx, &database.Full{
-				SchemaNameT: t.SchemaNameT,
+				SchemaNameT: strings.ToUpper(cfg.OracleConfig.Schema),
 				TableNameT:  t.TableNameS,
 				TaskStatus:  "FAILED",
 			})
@@ -350,7 +350,7 @@ func Scan(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *co
 			}
 
 			runMetas, err := database.NewFullModel(dbM).DetailFullSyncMeta(ctx, &database.Full{
-				SchemaNameT: t.SchemaNameT,
+				SchemaNameT: strings.ToUpper(cfg.OracleConfig.Schema),
 				TableNameT:  t.TableNameS,
 				TaskStatus:  "RUNNING",
 			})
@@ -448,7 +448,7 @@ func Statistics(ctx context.Context, dbM *database.Meta, dbS *database.MySQL, cf
 			}
 
 			results, err := database.NewScanModel(dbM).DetailScanResult(ctx, &database.Scan{
-				SchemaNameT: strings.ToUpper(t.SchemaNameT),
+				SchemaNameT: strings.ToUpper(cfg.OracleConfig.Schema),
 				TableNameT:  strings.ToUpper(t.TableNameS),
 			})
 			if err != nil {
@@ -462,7 +462,7 @@ func Statistics(ctx context.Context, dbM *database.Meta, dbS *database.MySQL, cf
 
 			if len(results) == 0 {
 				err = database.NewStatisticsModel(dbM).CreateStatistics(ctx, &database.Statistics{
-					SchemaNameT:     strings.ToUpper(t.SchemaNameT),
+					SchemaNameT:     strings.ToUpper(cfg.OracleConfig.Schema),
 					TableNameT:      strings.ToUpper(t.TableNameS),
 					ModifyColumn:    "",
 					NotModifyColumn: "",
@@ -520,7 +520,7 @@ func Statistics(ctx context.Context, dbM *database.Meta, dbS *database.MySQL, cf
 					}
 				}
 				err = database.NewStatisticsModel(dbM).CreateStatistics(ctx, &database.Statistics{
-					SchemaNameT:     strings.ToUpper(t.SchemaNameT),
+					SchemaNameT:     strings.ToUpper(cfg.OracleConfig.Schema),
 					TableNameT:      strings.ToUpper(t.TableNameS),
 					ModifyColumn:    strings.Join(canModify, ";\n"),
 					NotModifyColumn: strings.Join(canotModify, ","),
