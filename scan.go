@@ -216,7 +216,12 @@ func Split(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *c
 		}
 	}
 
-	zap.L().Info("split mysql database filter tables task success", zap.String("startTime", fTime.String()), zap.String("cost", time.Now().Sub(fTime).String()))
+	zap.L().Info("split mysql database filter tables task success",
+		zap.String("startTime", fTime.String()),
+		zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)),
+		zap.Int("all tables", len(tables)),
+		zap.Int("schema tables", len(tasks)),
+		zap.String("cost", time.Now().Sub(fTime).String()))
 
 	g := workpool.New(cfg.AppConfig.SQLThread)
 
@@ -232,9 +237,11 @@ func Split(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *c
 				return err
 			}
 
+			rTime := time.Now()
 			if err := dbT.StartOracleCreateChunkByRowID(taskName, strings.ToUpper(cfg.OracleConfig.Schema), strings.ToUpper(t.TableNameS), strconv.Itoa(cfg.AppConfig.ChunkSize), cfg.AppConfig.CallTimeout); err != nil {
 				return err
 			}
+			zap.L().Info("split mysql database decimal single table chunk", zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)), zap.String("table", strings.ToUpper(t.TableNameS)), zap.String("startTime", rTime.String()), zap.String("cost", time.Now().Sub(rTime).String()))
 
 			chunkRes, err := dbT.GetOracleTableChunksByRowID(taskName)
 			if err != nil {
@@ -259,6 +266,8 @@ func Split(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *c
 				return nil
 			}
 
+			zap.L().Info("split mysql database decimal single table chunk", zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)), zap.String("table", strings.ToUpper(t.TableNameS)), zap.Int("chunks", len(chunkRes)))
+
 			var fs []database.Full
 			for _, res := range chunkRes {
 				fs = append(fs, database.Full{
@@ -270,6 +279,7 @@ func Split(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *c
 					TaskStatus:    "WAITING",
 				})
 			}
+
 			err = database.NewFullModel(dbM).BatchCreateFullSyncMeta(ctx, fs, cfg.AppConfig.BatchSize)
 			if err != nil {
 				return err
@@ -289,6 +299,7 @@ func Split(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *c
 	}
 
 	zap.L().Info("split mysql database decimal tables task success", zap.String("cost", time.Now().Sub(sTime).String()))
+
 	return nil
 }
 

@@ -6,7 +6,7 @@ chunk-size = 200000
 sql-hint = "/*+ PARALLEL(8) */"
 skip-init = false
 # 单位: 秒
-call-timeout = 999999999999
+call-timeout = 36000
 
 [oracle]
 username = "findpt"

@@ -124,9 +124,13 @@ END;`)
 func (o *Oracle) StartOracleCreateChunkByRowID(taskName, schemaName, tableName string, chunkSize string, callTimeout int64) error {
 	deadline := time.Now().Add(time.Duration(callTimeout) * time.Second)
 
-	zap.L().Warn("current calltimeout",
+	zap.L().Warn("split task schema table calltimeout",
+		zap.String("task", taskName),
+		zap.String("schema", schemaName),
+		zap.String("table", tableName),
 		zap.Int64("calltimeout", callTimeout),
 		zap.String("deadline", deadline.String()))
+
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
 
