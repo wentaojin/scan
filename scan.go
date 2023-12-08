@@ -228,11 +228,11 @@ func Split(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *c
 
 			taskName := uuid.New().String()
 
-			if err := dbT.StartOracleChunkCreateTask(taskName); err != nil {
+			if err := dbT.StartOracleChunkCreateTask(taskName, cfg.AppConfig.CallTimeout); err != nil {
 				return err
 			}
 
-			if err := dbT.StartOracleCreateChunkByRowID(taskName, strings.ToUpper(cfg.OracleConfig.Schema), strings.ToUpper(t.TableNameS), strconv.Itoa(cfg.AppConfig.ChunkSize)); err != nil {
+			if err := dbT.StartOracleCreateChunkByRowID(taskName, strings.ToUpper(cfg.OracleConfig.Schema), strings.ToUpper(t.TableNameS), strconv.Itoa(cfg.AppConfig.ChunkSize), cfg.AppConfig.CallTimeout); err != nil {
 				return err
 			}
 

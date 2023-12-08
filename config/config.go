@@ -41,6 +41,7 @@ type AppConfig struct {
 	ChunkSize   int    `toml:"chunk-size" json:"chunk-size"`
 	SQLHint     string `toml:"sql-hint" json:"sql-hint"`
 	SkipInit    bool   `toml:"skip-init" json:"skip-init"`
+	CallTimeout int64  `toml:"call-timeout" json:"call-timeout"`
 }
 
 type OracleConfig struct {

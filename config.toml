@@ -5,6 +5,7 @@ batch-size = 500
 chunk-size = 200000
 sql-hint = "/*+ PARALLEL(8) */"
 skip-init = false
+call-timeout = 999999999999
 
 [oracle]
 username = "findpt"

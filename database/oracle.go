@@ -26,6 +26,7 @@ import (
 	"github.com/wentaojin/scan/config"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Oracle struct {
@@ -97,14 +98,14 @@ func NewOracleDBEngine(ctx context.Context, oraCfg config.OracleConfig) (*Oracle
 	}, nil
 }
 
-func (o *Oracle) StartOracleChunkCreateTask(taskName string) error {
+func (o *Oracle) StartOracleChunkCreateTask(taskName string, callTimeout int64) error {
 	querySQL := common.StringsBuilder(`SELECT COUNT(1) COUNT FROM dba_parallel_execute_chunks WHERE TASK_NAME='`, taskName, `'`)
 	_, res, err := Query(o.Ctx, o.OracleDB, querySQL)
 	if err != nil {
 		return err
 	}
 	if res[0]["COUNT"] != "0" {
-		if err = o.CloseOracleChunkTask(taskName); err != nil {
+		if err = o.CloseOracleChunkTask(taskName, callTimeout); err != nil {
 			return err
 		}
 	}
@@ -113,14 +114,14 @@ func (o *Oracle) StartOracleChunkCreateTask(taskName string) error {
 	createSQL := common.StringsBuilder(`BEGIN
   DBMS_PARALLEL_EXECUTE.CREATE_TASK (task_name => '`, taskName, `');
 END;`)
-	_, err = o.OracleDB.ExecContext(ctx, createSQL)
+	_, err = o.OracleDB.ExecContext(ctx, createSQL, godror.CallTimeout(time.Duration(callTimeout)))
 	if err != nil {
 		return fmt.Errorf("oracle DBMS_PARALLEL_EXECUTE create task failed: %v, sql: %v", err, createSQL)
 	}
 	return nil
 }
 
-func (o *Oracle) StartOracleCreateChunkByRowID(taskName, schemaName, tableName string, chunkSize string) error {
+func (o *Oracle) StartOracleCreateChunkByRowID(taskName, schemaName, tableName string, chunkSize string, callTimout int64) error {
 	ctx, _ := context.WithCancel(o.Ctx)
 
 	chunkSQL := common.StringsBuilder(`BEGIN
@@ -130,10 +131,11 @@ func (o *Oracle) StartOracleCreateChunkByRowID(taskName, schemaName, tableName s
                                                by_row      => TRUE,
                                                chunk_size  => `, chunkSize, `);
 END;`)
-	_, err := o.OracleDB.ExecContext(ctx, chunkSQL)
+	_, err := o.OracleDB.ExecContext(ctx, chunkSQL, godror.CallTimeout(time.Duration(callTimout)))
 	if err != nil {
 		return fmt.Errorf("oracle DBMS_PARALLEL_EXECUTE create_chunks_by_rowid task failed: %v, sql: %v", err, chunkSQL)
 	}
+
 	return nil
 }
 
@@ -147,14 +149,14 @@ func (o *Oracle) GetOracleTableChunksByRowID(taskName string) ([]map[string]stri
 	return res, nil
 }
 
-func (o *Oracle) CloseOracleChunkTask(taskName string) error {
+func (o *Oracle) CloseOracleChunkTask(taskName string, callTimeout int64) error {
 	ctx, _ := context.WithCancel(context.Background())
 
 	clearSQL := common.StringsBuilder(`BEGIN
   DBMS_PARALLEL_EXECUTE.DROP_TASK ('`, taskName, `');
 END;`)
 
-	_, err := o.OracleDB.ExecContext(ctx, clearSQL)
+	_, err := o.OracleDB.ExecContext(ctx, clearSQL, godror.CallTimeout(time.Duration(callTimeout)))
 	if err != nil {
 		return fmt.Errorf("oracle DBMS_PARALLEL_EXECUTE drop task failed: %v, sql: %v", err, clearSQL)
 	}
