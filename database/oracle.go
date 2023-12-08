@@ -24,6 +24,7 @@ import (
 	"github.com/greatcloak/decimal"
 	"github.com/wentaojin/scan/common"
 	"github.com/wentaojin/scan/config"
+	"go.uber.org/zap"
 	"strconv"
 	"strings"
 	"time"
@@ -98,25 +99,22 @@ func NewOracleDBEngine(ctx context.Context, oraCfg config.OracleConfig) (*Oracle
 	}, nil
 }
 
-func (o *Oracle) StartOracleChunkCreateTask(taskName string, callTimeout int64) error {
+func (o *Oracle) StartOracleChunkCreateTask(taskName string) error {
 	querySQL := common.StringsBuilder(`SELECT COUNT(1) COUNT FROM dba_parallel_execute_chunks WHERE TASK_NAME='`, taskName, `'`)
 	_, res, err := Query(o.Ctx, o.OracleDB, querySQL)
 	if err != nil {
 		return err
 	}
 	if res[0]["COUNT"] != "0" {
-		if err = o.CloseOracleChunkTask(taskName, callTimeout); err != nil {
+		if err = o.CloseOracleChunkTask(taskName); err != nil {
 			return err
 		}
 	}
 
-	deadline := time.Now().Add(time.Duration(callTimeout) * time.Second)
-	ctx, cancel := context.WithDeadline(o.Ctx, deadline)
-	defer cancel()
 	createSQL := common.StringsBuilder(`BEGIN
   DBMS_PARALLEL_EXECUTE.CREATE_TASK (task_name => '`, taskName, `');
 END;`)
-	_, err = o.OracleDB.ExecContext(ctx, createSQL)
+	_, err = o.OracleDB.ExecContext(o.Ctx, createSQL)
 	if err != nil {
 		return fmt.Errorf("oracle DBMS_PARALLEL_EXECUTE create task failed: %v, sql: %v", err, createSQL)
 	}
@@ -126,7 +124,10 @@ END;`)
 func (o *Oracle) StartOracleCreateChunkByRowID(taskName, schemaName, tableName string, chunkSize string, callTimeout int64) error {
 	deadline := time.Now().Add(time.Duration(callTimeout) * time.Second)
 
-	ctx, cancel := context.WithDeadline(o.Ctx, deadline)
+	zap.L().Warn("current calltimeout",
+		zap.Int64("calltimeout", callTimeout),
+		zap.String("deadline", deadline.String()))
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
 
 	chunkSQL := common.StringsBuilder(`BEGIN
@@ -154,17 +155,12 @@ func (o *Oracle) GetOracleTableChunksByRowID(taskName string) ([]map[string]stri
 	return res, nil
 }
 
-func (o *Oracle) CloseOracleChunkTask(taskName string, callTimeout int64) error {
-	deadline := time.Now().Add(time.Duration(callTimeout) * time.Second)
-
-	ctx, cancel := context.WithDeadline(o.Ctx, deadline)
-	defer cancel()
-
+func (o *Oracle) CloseOracleChunkTask(taskName string) error {
 	clearSQL := common.StringsBuilder(`BEGIN
   DBMS_PARALLEL_EXECUTE.DROP_TASK ('`, taskName, `');
 END;`)
 
-	_, err := o.OracleDB.ExecContext(ctx, clearSQL)
+	_, err := o.OracleDB.ExecContext(o.Ctx, clearSQL)
 	if err != nil {
 		return fmt.Errorf("oracle DBMS_PARALLEL_EXECUTE drop task failed: %v, sql: %v", err, clearSQL)
 	}
