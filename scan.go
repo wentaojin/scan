@@ -74,7 +74,7 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	zap.L().Warn("trucnate meta database table finished", zap.String("schema", cfg.MetaConfig.MetaSchema), zap.String("tables", "statistics"), zap.String("status", "success"))
+	zap.L().Warn("delete meta database table finished", zap.String("schema", cfg.MetaConfig.MetaSchema), zap.String("tables", "statistics"), zap.String("status", "success"))
 
 	if !cfg.AppConfig.SkipInit {
 		err = Init(ctx, metaDB, mysqldb, cfg)
@@ -84,12 +84,35 @@ func Run(ctx context.Context, cfg *config.Config) error {
 		zap.L().Warn("skip meta database init table stage", zap.String("schema", cfg.MetaConfig.MetaSchema), zap.Bool("skip-init", cfg.AppConfig.SkipInit))
 	}
 
-	tables, err := database.NewWaitModel(metaDB).DetailWaitSyncMeta(ctx, &database.Wait{
+	metaTables, err := database.NewWaitModel(metaDB).DetailWaitSyncMeta(ctx, &database.Wait{
 		SchemaNameT: strings.ToUpper(cfg.MySQLConfig.Schema),
 	})
 	if err != nil {
 		return err
 	}
+
+	// filter
+	fTime := time.Now()
+	oraTables, err := oracleDB.GetOracleSchemaTable(strings.ToUpper(cfg.OracleConfig.Schema))
+	if err != nil {
+		return err
+	}
+
+	var tasks []database.Wait
+	for _, ora := range oraTables {
+		for _, t := range metaTables {
+			if strings.EqualFold(t.TableNameS, ora) {
+				tasks = append(tasks, t)
+			}
+		}
+	}
+
+	zap.L().Info("split mysql database filter tables task success",
+		zap.String("startTime", fTime.String()),
+		zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)),
+		zap.Int("all tables", len(metaTables)),
+		zap.Int("schema tables", len(tasks)),
+		zap.String("cost", time.Now().Sub(fTime).String()))
 
 	if !cfg.AppConfig.SkipSplit {
 		err = metaDB.DB(ctx).Exec(
@@ -101,20 +124,20 @@ func Run(ctx context.Context, cfg *config.Config) error {
 		if err != nil {
 			return err
 		}
-		zap.L().Warn("trucnate meta database table finished", zap.String("schema", cfg.MetaConfig.MetaSchema), zap.String("tables", "full,scan"), zap.String("status", "success"), zap.Bool("skip-split", cfg.AppConfig.SkipSplit))
+		zap.L().Warn("delete meta database table finished", zap.String("schema", cfg.MetaConfig.MetaSchema), zap.String("tables", "full,scan"), zap.String("status", "success"), zap.Bool("skip-split", cfg.AppConfig.SkipSplit))
 
-		err = Split(ctx, metaDB, oracleDB, cfg, tables)
+		err = Split(ctx, metaDB, oracleDB, cfg, tasks)
 		if err != nil {
 			return err
 		}
 	}
 
-	err = Scan(ctx, metaDB, oracleDB, cfg, tables)
+	err = Scan(ctx, metaDB, oracleDB, cfg, tasks)
 	if err != nil {
 		return err
 	}
 
-	err = Statistics(ctx, metaDB, mysqldb, cfg, tables)
+	err = Statistics(ctx, metaDB, mysqldb, cfg, tasks)
 	if err != nil {
 		return err
 	}
@@ -207,31 +230,9 @@ func Split(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *c
 	sTime := time.Now()
 	zap.L().Info("split mysql database decimal tables task starting", zap.String("startTime", sTime.String()))
 
-	fTime := time.Now()
-	oraTables, err := dbT.GetOracleSchemaTable(strings.ToUpper(cfg.OracleConfig.Schema))
-	if err != nil {
-		return err
-	}
-
-	var tasks []database.Wait
-	for _, ora := range oraTables {
-		for _, t := range tables {
-			if strings.EqualFold(t.TableNameS, ora) {
-				tasks = append(tasks, t)
-			}
-		}
-	}
-
-	zap.L().Info("split mysql database filter tables task success",
-		zap.String("startTime", fTime.String()),
-		zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)),
-		zap.Int("all tables", len(tables)),
-		zap.Int("schema tables", len(tasks)),
-		zap.String("cost", time.Now().Sub(fTime).String()))
-
 	g := workpool.New(cfg.AppConfig.InitThread)
 
-	for _, tab := range tasks {
+	for _, tab := range tables {
 		t := tab
 		g.Do(func() error {
 			mTime := time.Now()
