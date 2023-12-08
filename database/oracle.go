@@ -110,19 +110,21 @@ func (o *Oracle) StartOracleChunkCreateTask(taskName string, callTimeout int64) 
 		}
 	}
 
-	ctx, _ := context.WithCancel(o.Ctx)
+	ctx, cancel := context.WithTimeout(o.Ctx, time.Duration(callTimeout))
+	defer cancel()
 	createSQL := common.StringsBuilder(`BEGIN
   DBMS_PARALLEL_EXECUTE.CREATE_TASK (task_name => '`, taskName, `');
 END;`)
-	_, err = o.OracleDB.ExecContext(ctx, createSQL, godror.CallTimeout(time.Duration(callTimeout)))
+	_, err = o.OracleDB.ExecContext(ctx, createSQL)
 	if err != nil {
 		return fmt.Errorf("oracle DBMS_PARALLEL_EXECUTE create task failed: %v, sql: %v", err, createSQL)
 	}
 	return nil
 }
 
-func (o *Oracle) StartOracleCreateChunkByRowID(taskName, schemaName, tableName string, chunkSize string, callTimout int64) error {
-	ctx, _ := context.WithCancel(o.Ctx)
+func (o *Oracle) StartOracleCreateChunkByRowID(taskName, schemaName, tableName string, chunkSize string, callTimeout int64) error {
+	ctx, cancel := context.WithTimeout(o.Ctx, time.Duration(callTimeout))
+	defer cancel()
 
 	chunkSQL := common.StringsBuilder(`BEGIN
   DBMS_PARALLEL_EXECUTE.CREATE_CHUNKS_BY_ROWID (task_name   => '`, taskName, `',
@@ -131,7 +133,7 @@ func (o *Oracle) StartOracleCreateChunkByRowID(taskName, schemaName, tableName s
                                                by_row      => TRUE,
                                                chunk_size  => `, chunkSize, `);
 END;`)
-	_, err := o.OracleDB.ExecContext(ctx, chunkSQL, godror.CallTimeout(time.Duration(callTimout)))
+	_, err := o.OracleDB.ExecContext(ctx, chunkSQL)
 	if err != nil {
 		return fmt.Errorf("oracle DBMS_PARALLEL_EXECUTE create_chunks_by_rowid task failed: %v, sql: %v", err, chunkSQL)
 	}
@@ -150,13 +152,14 @@ func (o *Oracle) GetOracleTableChunksByRowID(taskName string) ([]map[string]stri
 }
 
 func (o *Oracle) CloseOracleChunkTask(taskName string, callTimeout int64) error {
-	ctx, _ := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(o.Ctx, time.Duration(callTimeout))
+	defer cancel()
 
 	clearSQL := common.StringsBuilder(`BEGIN
   DBMS_PARALLEL_EXECUTE.DROP_TASK ('`, taskName, `');
 END;`)
 
-	_, err := o.OracleDB.ExecContext(ctx, clearSQL, godror.CallTimeout(time.Duration(callTimeout)))
+	_, err := o.OracleDB.ExecContext(ctx, clearSQL)
 	if err != nil {
 		return fmt.Errorf("oracle DBMS_PARALLEL_EXECUTE drop task failed: %v, sql: %v", err, clearSQL)
 	}
