@@ -26,7 +26,7 @@ type Scan struct {
 	SchemaNameT   string `gorm:"type:varchar(100);not null;index:idx_complex;comment:'目标端 schema'" json:"schema_name_t"`
 	TableNameT    string `gorm:"type:varchar(100);not null;index:idx_complex;comment:'目标端表名'" json:"table_name_t"`
 	SQLHint       string `gorm:"type:varchar(300);comment:'sql hint'" json:"sql_hint"`
-	ColumnDetailT string `gorm:"type:text;comment:'源端查询字段信息'" json:"column_detail_t"`
+	ColumnDetailT string `gorm:"type:longtext;comment:'源端查询字段信息'" json:"column_detail_t"`
 	ChunkDetailT  string `gorm:"type:varchar(300);not null;comment:'表 chunk 切分信息'" json:"chunk_detail_t"`
 	RowID         string `gorm:"type:varchar(300);not null;index:idx_complex;comment:'表异常数据所在行 rowid'" json:"row_id"`
 	*Column

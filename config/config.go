@@ -35,10 +35,11 @@ type Config struct {
 }
 
 type AppConfig struct {
-	BatchSize int    `toml:"batch-size" json:"batch-size"`
-	Thread    int    `toml:"thread" json:"thread"`
-	ChunkSize int    `toml:"chunk-size" json:"chunk-size"`
-	SQLHint   string `toml:"sql-hint" json:"sql-hint"`
+	BatchSize   int    `toml:"batch-size" json:"batch-size"`
+	TableThread int    `toml:"table-thread" json:"table-thread"`
+	SQLThread   int    `toml:"sql-thread" json:"sql-thread"`
+	ChunkSize   int    `toml:"chunk-size" json:"chunk-size"`
+	SQLHint     string `toml:"sql-hint" json:"sql-hint"`
 }
 
 type OracleConfig struct {

@@ -25,7 +25,7 @@ type Wait struct {
 	ID            uint   `gorm:"primary_key;autoIncrement;comment:'自增编号'" json:"id"`
 	SchemaNameT   string `gorm:"type:varchar(100);not null;index:idx_dbtype_st_map,unique;comment:'目标端 schema'" json:"schema_name_t"`
 	TableNameS    string `gorm:"type:varchar(100);not null;index:idx_dbtype_st_map,unique;comment:'源端表名'" json:"table_name_s"`
-	ColumnDetailS string `gorm:"type:varchar(100);not null;" json:"column_detail_s"`
+	ColumnDetailS string `gorm:"type:longtext;not null;" json:"column_detail_s"`
 	*Meta         `gorm:"-" json:"-"`
 }
 

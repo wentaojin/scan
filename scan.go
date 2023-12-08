@@ -116,7 +116,7 @@ func Init(ctx context.Context, dbM *database.Meta, dbS *database.MySQL, cfg *con
 	}
 	zap.L().Info("get mysql database all tables success", zap.String("cost", time.Now().Sub(tTime).String()))
 
-	g := workpool.New(cfg.AppConfig.Thread)
+	g := workpool.New(cfg.AppConfig.SQLThread)
 
 	for _, tab := range tables {
 		t := tab
@@ -149,7 +149,8 @@ func Init(ctx context.Context, dbM *database.Meta, dbS *database.MySQL, cfg *con
 						}
 					default:
 						zap.L().Warn("current table decimal single data_scale",
-							zap.String("schema", cfg.MySQLConfig.Schema), zap.String("table", t),
+							zap.String("schema", cfg.MySQLConfig.Schema),
+							zap.String("table", t),
 							zap.String("datatype", fmt.Sprintf("decimal(%d,%d)", precision, scale)))
 					}
 				}
@@ -184,7 +185,7 @@ func Split(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *c
 	sTime := time.Now()
 	zap.L().Info("split mysql database decimal tables task starting", zap.String("startTime", sTime.String()))
 
-	g := workpool.New(cfg.AppConfig.Thread)
+	g := workpool.New(cfg.AppConfig.SQLThread)
 
 	for _, tab := range tables {
 		t := tab
@@ -268,71 +269,81 @@ func Scan(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *co
 		return err
 	}
 
-	for _, t := range tables {
-		mTime := time.Now()
-		zap.L().Info("scan oracle database decimal single table starting", zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)), zap.String("table", strings.ToUpper(t.TableNameS)), zap.String("starttime", mTime.String()))
+	g0 := workpool.New(cfg.AppConfig.TableThread)
 
-		metas, err := database.NewFullModel(dbM).DetailFullSyncMeta(ctx, &database.Full{
-			SchemaNameT: t.SchemaNameT,
-			TableNameT:  t.TableNameS,
-		})
-		if err != nil {
-			return err
-		}
+	for _, tab := range tables {
+		t := tab
+		g0.Do(func() error {
+			mTime := time.Now()
+			zap.L().Info("scan oracle database decimal single table starting", zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)), zap.String("table", strings.ToUpper(t.TableNameS)), zap.String("starttime", mTime.String()))
 
-		g := workpool.New(cfg.AppConfig.Thread)
+			metas, err := database.NewFullModel(dbM).DetailFullSyncMeta(ctx, &database.Full{
+				SchemaNameT: t.SchemaNameT,
+				TableNameT:  t.TableNameS,
+			})
+			if err != nil {
+				return err
+			}
 
-		for _, mt := range metas {
-			m := mt
-			g.Do(func() error {
-				tTime := time.Now()
-				zap.L().Info("scan oracle database decimal single table chunk starting", zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)), zap.String("table", strings.ToUpper(t.TableNameS)), zap.String("column", m.ColumnDetailT), zap.String("chunk", m.ChunkDetailT), zap.String("startTime", tTime.String()))
+			g := workpool.New(cfg.AppConfig.SQLThread)
 
-				err = database.NewFullModel(dbM).UpdateFullSyncMetaChunk(ctx, &database.Full{
-					SchemaNameT:  m.SchemaNameT,
-					TableNameT:   m.TableNameT,
-					ChunkDetailT: m.ChunkDetailT,
-				}, map[string]interface{}{
-					"TaskStatus": "RUNNING",
-				})
-				if err != nil {
-					return err
-				}
+			for _, mt := range metas {
+				m := mt
+				g.Do(func() error {
+					tTime := time.Now()
+					zap.L().Info("scan oracle database decimal single table chunk starting", zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)), zap.String("table", strings.ToUpper(t.TableNameS)), zap.String("column", m.ColumnDetailT), zap.String("chunk", m.ChunkDetailT), zap.String("startTime", tTime.String()))
 
-				scanResults, err := dbT.ScanOracleTableDecimalData(m, common.MigrateOracleCharsetStringConvertMapping[strings.ToUpper(cfg.OracleConfig.Charset)], common.MigrateMYSQLCompatibleCharsetStringConvertMapping[strings.ToUpper(cfg.MySQLConfig.Charset)], bigintStr, unsinBigintStr)
-				if err != nil {
-					return err
-				}
-
-				if len(scanResults) > 0 {
-					err = database.NewScanModel(dbM).BatchCreateScanResult(ctx, scanResults, cfg.AppConfig.BatchSize)
+					err = database.NewFullModel(dbM).UpdateFullSyncMetaChunk(ctx, &database.Full{
+						SchemaNameT:  m.SchemaNameT,
+						TableNameT:   m.TableNameT,
+						ChunkDetailT: m.ChunkDetailT,
+					}, map[string]interface{}{
+						"TaskStatus": "RUNNING",
+					})
 					if err != nil {
 						return err
 					}
-				}
 
-				err = database.NewFullModel(dbM).UpdateFullSyncMetaChunk(ctx, &database.Full{
-					SchemaNameT:  m.SchemaNameT,
-					TableNameT:   m.TableNameT,
-					ChunkDetailT: m.ChunkDetailT,
-				}, map[string]interface{}{
-					"TaskStatus": "SUCCESS",
+					scanResults, err := dbT.ScanOracleTableDecimalData(m, common.MigrateOracleCharsetStringConvertMapping[strings.ToUpper(cfg.OracleConfig.Charset)], common.MigrateMYSQLCompatibleCharsetStringConvertMapping[strings.ToUpper(cfg.MySQLConfig.Charset)], bigintStr, unsinBigintStr)
+					if err != nil {
+						return err
+					}
+
+					if len(scanResults) > 0 {
+						err = database.NewScanModel(dbM).BatchCreateScanResult(ctx, scanResults, cfg.AppConfig.BatchSize)
+						if err != nil {
+							return err
+						}
+					}
+
+					err = database.NewFullModel(dbM).UpdateFullSyncMetaChunk(ctx, &database.Full{
+						SchemaNameT:  m.SchemaNameT,
+						TableNameT:   m.TableNameT,
+						ChunkDetailT: m.ChunkDetailT,
+					}, map[string]interface{}{
+						"TaskStatus": "SUCCESS",
+					})
+					if err != nil {
+						return err
+					}
+
+					zap.L().Info("scan oracle database decimal single table chunk success", zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)), zap.String("table", strings.ToUpper(t.TableNameS)), zap.String("column", m.ColumnDetailT), zap.String("chunk", m.ChunkDetailT), zap.String("cost", time.Now().Sub(tTime).String()))
+
+					return nil
 				})
-				if err != nil {
-					return err
-				}
+			}
 
-				zap.L().Info("scan oracle database decimal single table chunk success", zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)), zap.String("table", strings.ToUpper(t.TableNameS)), zap.String("column", m.ColumnDetailT), zap.String("chunk", m.ChunkDetailT), zap.String("cost", time.Now().Sub(tTime).String()))
+			if err = g.Wait(); err != nil {
+				return err
+			}
 
-				return nil
-			})
-		}
+			zap.L().Info("scan oracle database decimal single tables success", zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)), zap.String("table", strings.ToUpper(t.TableNameS)), zap.String("cost", time.Now().Sub(mTime).String()))
+			return nil
+		})
+	}
 
-		if err = g.Wait(); err != nil {
-			return err
-		}
-
-		zap.L().Info("scan oracle database decimal single tables success", zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)), zap.String("table", strings.ToUpper(t.TableNameS)), zap.String("cost", time.Now().Sub(mTime).String()))
+	if err := g0.Wait(); err != nil {
+		return err
 	}
 
 	zap.L().Info("scan oracle database schema tables task success", zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)), zap.String("cost", time.Now().Sub(sTime).String()))
@@ -344,7 +355,7 @@ func Statistics(ctx context.Context, dbM *database.Meta, dbS *database.MySQL, cf
 	sTime := time.Now()
 	zap.L().Info("statistics mysql database decimal tables task starting", zap.String("startTime", sTime.String()))
 
-	g := workpool.New(cfg.AppConfig.Thread)
+	g := workpool.New(cfg.AppConfig.SQLThread)
 
 	for _, tab := range tables {
 		t := tab
