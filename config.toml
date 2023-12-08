@@ -4,7 +4,7 @@ sql-thread = 1024
 batch-size = 500
 chunk-size = 200000
 sql-hint = "/*+ PARALLEL(8) */"
-
+skip-init = false
 
 [oracle]
 username = "findpt"

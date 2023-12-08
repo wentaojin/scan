@@ -40,6 +40,7 @@ type AppConfig struct {
 	SQLThread   int    `toml:"sql-thread" json:"sql-thread"`
 	ChunkSize   int    `toml:"chunk-size" json:"chunk-size"`
 	SQLHint     string `toml:"sql-hint" json:"sql-hint"`
+	SkipInit    bool   `toml:"skip-init" json:"skip-init"`
 }
 
 type OracleConfig struct {

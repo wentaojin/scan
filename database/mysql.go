@@ -19,6 +19,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/wentaojin/scan/common"
 	"github.com/wentaojin/scan/config"
 	"strings"
 )
@@ -39,6 +40,11 @@ func NewMySQLDBEngine(ctx context.Context, mysqlCfg config.MySQLConfig) (*MySQL,
 	if err != nil {
 		return nil, fmt.Errorf("error on open mysql database connection: %v", err)
 	}
+
+	mysqlDB.SetMaxIdleConns(common.MySQLMaxIdleConn)
+	mysqlDB.SetMaxOpenConns(common.MySQLMaxConn)
+	mysqlDB.SetConnMaxLifetime(common.MySQLConnMaxLifeTime)
+	mysqlDB.SetConnMaxIdleTime(common.MySQLConnMaxIdleTime)
 
 	if err = mysqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("error on ping mysql database connection: %v", err)

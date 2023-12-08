@@ -70,9 +70,25 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	}
 	zap.L().Info("create database connect success", zap.String("cost", time.Now().Sub(sTime).String()))
 
-	err = Init(ctx, metaDB, mysqldb, cfg)
-	if err != nil {
-		return err
+	if !cfg.AppConfig.SkipInit {
+		err = Init(ctx, metaDB, mysqldb, cfg)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := metaDB.DB(ctx).Exec(fmt.Sprintf("TRUNCATE TABLE `%s`.`scan`", cfg.MetaConfig.MetaSchema)).Error
+		if err != nil {
+			return err
+		}
+		err = metaDB.DB(ctx).Exec(fmt.Sprintf("TRUNCATE TABLE `%s`.`full`", cfg.MetaConfig.MetaSchema)).Error
+		if err != nil {
+			return err
+		}
+		err = metaDB.DB(ctx).Exec(fmt.Sprintf("TRUNCATE TABLE `%s`.`statistics`", cfg.MetaConfig.MetaSchema)).Error
+		if err != nil {
+			return err
+		}
+		zap.L().Warn("trucnate meta database table finished", zap.String("schema", cfg.MetaConfig.MetaSchema), zap.String("tables", "scan,full,statistics"), zap.String("status", "success"), zap.Bool("skip-init", cfg.AppConfig.SkipInit))
 	}
 
 	tables, err := database.NewWaitModel(metaDB).DetailWaitSyncMeta(ctx, &database.Wait{
@@ -185,9 +201,26 @@ func Split(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *c
 	sTime := time.Now()
 	zap.L().Info("split mysql database decimal tables task starting", zap.String("startTime", sTime.String()))
 
+	fTime := time.Now()
+	oraTables, err := dbT.GetOracleSchemaTable(strings.ToUpper(cfg.OracleConfig.Schema))
+	if err != nil {
+		return err
+	}
+
+	var tasks []database.Wait
+	for _, ora := range oraTables {
+		for _, t := range tables {
+			if strings.EqualFold(t.TableNameS, ora) {
+				tasks = append(tasks, t)
+			}
+		}
+	}
+
+	zap.L().Info("split mysql database filter tables task success", zap.String("startTime", fTime.String()), zap.String("cost", time.Now().Sub(fTime).String()))
+
 	g := workpool.New(cfg.AppConfig.SQLThread)
 
-	for _, tab := range tables {
+	for _, tab := range tasks {
 		t := tab
 		g.Do(func() error {
 			mTime := time.Now()

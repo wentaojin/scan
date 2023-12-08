@@ -18,12 +18,22 @@ package common
 import (
 	"bytes"
 	"fmt"
+	"github.com/scylladb/go-set"
+	"github.com/scylladb/go-set/strset"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/encoding/traditionalchinese"
 	"golang.org/x/text/transform"
 	"io"
 	"strings"
+	"time"
+)
+
+const (
+	MySQLMaxIdleConn     = 512
+	MySQLMaxConn         = 1024
+	MySQLConnMaxLifeTime = 300 * time.Second
+	MySQLConnMaxIdleTime = 200 * time.Second
 )
 
 const (
@@ -126,4 +136,16 @@ func CharsetConvert(data []byte, fromCharset, toCharset string) ([]byte, error) 
 	default:
 		return nil, fmt.Errorf("from charset [%v], to charset [%v] convert isn't support", fromCharset, toCharset)
 	}
+}
+
+func FilterIntersectionStringItems(originItems, newItems []string) []string {
+	s1 := set.NewStringSet()
+	for _, t := range originItems {
+		s1.Add(strings.ToUpper(t))
+	}
+	s2 := set.NewStringSet()
+	for _, t := range newItems {
+		s2.Add(strings.ToUpper(t))
+	}
+	return strset.Intersection(s1, s2).List()
 }

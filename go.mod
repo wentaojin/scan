@@ -7,6 +7,7 @@ require (
 	github.com/godror/godror v0.40.4
 	github.com/google/uuid v1.4.0
 	github.com/greatcloak/decimal v1.4.1
+	github.com/scylladb/go-set v1.0.2
 	github.com/xxjwxc/gowp v0.0.0-20230612082025-23a9b62c1da6
 	go.uber.org/zap v1.26.0
 	golang.org/x/text v0.14.0

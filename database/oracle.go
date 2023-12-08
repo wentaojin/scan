@@ -162,6 +162,22 @@ END;`)
 	return nil
 }
 
+func (o *Oracle) GetOracleSchemaTable(schemaName string) ([]string, error) {
+	var (
+		tables []string
+		err    error
+	)
+	_, res, err := Query(o.Ctx, o.OracleDB, fmt.Sprintf(`SELECT table_name AS TABLE_NAME FROM DBA_TABLES WHERE UPPER(owner) = UPPER('%s') AND (IOT_TYPE IS NUll OR IOT_TYPE='IOT')`, schemaName))
+	if err != nil {
+		return tables, err
+	}
+	for _, r := range res {
+		tables = append(tables, strings.ToUpper(r["TABLE_NAME"]))
+	}
+
+	return tables, nil
+}
+
 func (o *Oracle) ScanOracleTableDecimalData(m Full, sourceDBCharset, targetDBCharset string, bigintStr, unsinBigintStr decimal.Decimal) ([]Scan, error) {
 	var (
 		err         error
