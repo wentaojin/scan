@@ -70,25 +70,18 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	}
 	zap.L().Info("create database connect success", zap.String("cost", time.Now().Sub(sTime).String()))
 
+	err = metaDB.DB(ctx).Exec(fmt.Sprintf("TRUNCATE TABLE `%s`.`statistics`", cfg.MetaConfig.MetaSchema)).Error
+	if err != nil {
+		return err
+	}
+	zap.L().Warn("trucnate meta database table finished", zap.String("schema", cfg.MetaConfig.MetaSchema), zap.String("tables", "statistics"), zap.String("status", "success"))
+
 	if !cfg.AppConfig.SkipInit {
 		err = Init(ctx, metaDB, mysqldb, cfg)
 		if err != nil {
 			return err
 		}
-	} else {
-		err := metaDB.DB(ctx).Exec(fmt.Sprintf("TRUNCATE TABLE `%s`.`scan`", cfg.MetaConfig.MetaSchema)).Error
-		if err != nil {
-			return err
-		}
-		err = metaDB.DB(ctx).Exec(fmt.Sprintf("TRUNCATE TABLE `%s`.`full`", cfg.MetaConfig.MetaSchema)).Error
-		if err != nil {
-			return err
-		}
-		err = metaDB.DB(ctx).Exec(fmt.Sprintf("TRUNCATE TABLE `%s`.`statistics`", cfg.MetaConfig.MetaSchema)).Error
-		if err != nil {
-			return err
-		}
-		zap.L().Warn("trucnate meta database table finished", zap.String("schema", cfg.MetaConfig.MetaSchema), zap.String("tables", "scan,full,statistics"), zap.String("status", "success"), zap.Bool("skip-init", cfg.AppConfig.SkipInit))
+		zap.L().Warn("skip meta database init table stage", zap.String("schema", cfg.MetaConfig.MetaSchema), zap.Bool("skip-init", cfg.AppConfig.SkipInit))
 	}
 
 	tables, err := database.NewWaitModel(metaDB).DetailWaitSyncMeta(ctx, &database.Wait{
@@ -98,9 +91,21 @@ func Run(ctx context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	err = Split(ctx, metaDB, oracleDB, cfg, tables)
-	if err != nil {
-		return err
+	if !cfg.AppConfig.SkipSplit {
+		err = metaDB.DB(ctx).Exec(fmt.Sprintf("TRUNCATE TABLE `%s`.`full`", cfg.MetaConfig.MetaSchema)).Error
+		if err != nil {
+			return err
+		}
+		err := metaDB.DB(ctx).Exec(fmt.Sprintf("TRUNCATE TABLE `%s`.`scan`", cfg.MetaConfig.MetaSchema)).Error
+		if err != nil {
+			return err
+		}
+		zap.L().Warn("trucnate meta database table finished", zap.String("schema", cfg.MetaConfig.MetaSchema), zap.String("tables", "full,scan"), zap.String("status", "success"), zap.Bool("skip-split", cfg.AppConfig.SkipSplit))
+
+		err = Split(ctx, metaDB, oracleDB, cfg, tables)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = Scan(ctx, metaDB, oracleDB, cfg, tables)
@@ -132,7 +137,7 @@ func Init(ctx context.Context, dbM *database.Meta, dbS *database.MySQL, cfg *con
 	}
 	zap.L().Info("get mysql database all tables success", zap.String("cost", time.Now().Sub(tTime).String()))
 
-	g := workpool.New(cfg.AppConfig.SQLThread)
+	g := workpool.New(cfg.AppConfig.InitThread)
 
 	for _, tab := range tables {
 		t := tab
@@ -223,7 +228,7 @@ func Split(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *c
 		zap.Int("schema tables", len(tasks)),
 		zap.String("cost", time.Now().Sub(fTime).String()))
 
-	g := workpool.New(cfg.AppConfig.SQLThread)
+	g := workpool.New(cfg.AppConfig.InitThread)
 
 	for _, tab := range tasks {
 		t := tab
@@ -325,13 +330,37 @@ func Scan(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *co
 			mTime := time.Now()
 			zap.L().Info("scan oracle database decimal single table starting", zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)), zap.String("table", strings.ToUpper(t.TableNameS)), zap.String("starttime", mTime.String()))
 
-			metas, err := database.NewFullModel(dbM).DetailFullSyncMeta(ctx, &database.Full{
+			var metas []database.Full
+			waitMetas, err := database.NewFullModel(dbM).DetailFullSyncMeta(ctx, &database.Full{
 				SchemaNameT: t.SchemaNameT,
 				TableNameT:  t.TableNameS,
+				TaskStatus:  "WAITING",
 			})
 			if err != nil {
 				return err
 			}
+
+			failedMetas, err := database.NewFullModel(dbM).DetailFullSyncMeta(ctx, &database.Full{
+				SchemaNameT: t.SchemaNameT,
+				TableNameT:  t.TableNameS,
+				TaskStatus:  "FAILED",
+			})
+			if err != nil {
+				return err
+			}
+
+			runMetas, err := database.NewFullModel(dbM).DetailFullSyncMeta(ctx, &database.Full{
+				SchemaNameT: t.SchemaNameT,
+				TableNameT:  t.TableNameS,
+				TaskStatus:  "RUNNING",
+			})
+			if err != nil {
+				return err
+			}
+
+			metas = append(metas, waitMetas...)
+			metas = append(metas, failedMetas...)
+			metas = append(metas, runMetas...)
 
 			g := workpool.New(cfg.AppConfig.SQLThread)
 
@@ -403,7 +432,7 @@ func Statistics(ctx context.Context, dbM *database.Meta, dbS *database.MySQL, cf
 	sTime := time.Now()
 	zap.L().Info("statistics mysql database decimal tables task starting", zap.String("startTime", sTime.String()))
 
-	g := workpool.New(cfg.AppConfig.SQLThread)
+	g := workpool.New(cfg.AppConfig.InitThread)
 
 	for _, tab := range tables {
 		t := tab

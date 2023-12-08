@@ -1,10 +1,12 @@
 [app]
+init-thread = 1024
 table-thread = 3
-sql-thread = 1024
+sql-thread = 512
 batch-size = 500
 chunk-size = 200000
 sql-hint = "/*+ PARALLEL(8) */"
-skip-init = false
+skip-init = true
+skip-split = true
 # 单位: 秒
 call-timeout = 36000
 

@@ -36,12 +36,14 @@ type Config struct {
 
 type AppConfig struct {
 	BatchSize   int    `toml:"batch-size" json:"batch-size"`
+	InitThread  int    `toml:"init-thread" json:"init-thread"`
 	TableThread int    `toml:"table-thread" json:"table-thread"`
 	SQLThread   int    `toml:"sql-thread" json:"sql-thread"`
 	ChunkSize   int    `toml:"chunk-size" json:"chunk-size"`
 	SQLHint     string `toml:"sql-hint" json:"sql-hint"`
-	SkipInit    bool   `toml:"skip-init" json:"skip-init"`
 	CallTimeout int64  `toml:"call-timeout" json:"call-timeout"`
+	SkipInit    bool   `toml:"skip-init" json:"skip-init"`
+	SkipSplit   bool   `toml:"skip-split" json:"skip-split"`
 }
 
 type OracleConfig struct {
