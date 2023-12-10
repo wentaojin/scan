@@ -149,10 +149,15 @@ END;`)
 	return nil
 }
 
-func (o *Oracle) GetOracleTableChunksByRowID(taskName string) ([]map[string]string, error) {
+func (o *Oracle) GetOracleTableChunksByRowID(taskName string, callTimeout int64) ([]map[string]string, error) {
 	querySQL := common.StringsBuilder(`SELECT 'ROWID BETWEEN ''' || start_rowid || ''' AND ''' || end_rowid || '''' CMD FROM dba_parallel_execute_chunks WHERE  task_name = '`, taskName, `' ORDER BY chunk_id`)
 
-	_, res, err := Query(o.Ctx, o.OracleDB, querySQL)
+	deadline := time.Now().Add(time.Duration(callTimeout) * time.Second)
+
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+
+	_, res, err := Query(ctx, o.OracleDB, querySQL)
 	if err != nil {
 		return res, err
 	}
@@ -188,7 +193,7 @@ func (o *Oracle) GetOracleSchemaTable(schemaName string) ([]string, error) {
 	return tables, nil
 }
 
-func (o *Oracle) ScanOracleTableDecimalData(m Full, sourceDBCharset, targetDBCharset string, bigintStr, unsinBigintStr decimal.Decimal) ([]Scan, error) {
+func (o *Oracle) ScanOracleTableDecimalData(m Full, sourceDBCharset, targetDBCharset string, bigintStr, unsinBigintStr decimal.Decimal, callTimeout int64) ([]Scan, error) {
 	var (
 		err         error
 		columnNames []string
@@ -216,7 +221,12 @@ func (o *Oracle) ScanOracleTableDecimalData(m Full, sourceDBCharset, targetDBCha
 		sqlStr = fmt.Sprintf("SELECT %v %v FROM %s.%s WHERE %v", m.SQLHint, columnDetail, m.SchemaNameT, m.TableNameT, m.ChunkDetailT)
 	}
 
-	rows, err := o.OracleDB.QueryContext(o.Ctx, sqlStr)
+	deadline := time.Now().Add(time.Duration(callTimeout) * time.Second)
+
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+
+	rows, err := o.OracleDB.QueryContext(ctx, sqlStr)
 	if err != nil {
 		return results, err
 	}

@@ -250,7 +250,7 @@ func Split(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *c
 			}
 			zap.L().Info("split mysql database decimal single table chunk", zap.String("schema", strings.ToUpper(cfg.OracleConfig.Schema)), zap.String("table", strings.ToUpper(t.TableNameS)), zap.String("startTime", rTime.String()), zap.String("cost", time.Now().Sub(rTime).String()))
 
-			chunkRes, err := dbT.GetOracleTableChunksByRowID(taskName)
+			chunkRes, err := dbT.GetOracleTableChunksByRowID(taskName, cfg.AppConfig.CallTimeout)
 			if err != nil {
 				return err
 			}
@@ -383,7 +383,7 @@ func Scan(ctx context.Context, dbM *database.Meta, dbT *database.Oracle, cfg *co
 						return err
 					}
 
-					scanResults, err := dbT.ScanOracleTableDecimalData(m, common.MigrateOracleCharsetStringConvertMapping[strings.ToUpper(cfg.OracleConfig.Charset)], common.MigrateMYSQLCompatibleCharsetStringConvertMapping[strings.ToUpper(cfg.MySQLConfig.Charset)], bigintStr, unsinBigintStr)
+					scanResults, err := dbT.ScanOracleTableDecimalData(m, common.MigrateOracleCharsetStringConvertMapping[strings.ToUpper(cfg.OracleConfig.Charset)], common.MigrateMYSQLCompatibleCharsetStringConvertMapping[strings.ToUpper(cfg.MySQLConfig.Charset)], bigintStr, unsinBigintStr, cfg.AppConfig.CallTimeout)
 					if err != nil {
 						return err
 					}
